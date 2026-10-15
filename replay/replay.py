@@ -155,16 +155,35 @@ class MockModel(Model):
 
 
 class BedrockModel(Model):
-    """Amazon Bedrock Converse. Mirrors GPTLLM: emails arrive as a `read_emails` tool result."""
+    """Amazon Bedrock Converse.
 
-    def __init__(self, model_id: str, region: str, temperature: float = 0.0,
-                 top_p: float = 0.92, max_tokens: int = 500):
+    Two deliveries:
+      - native (default, for Nova/Claude etc.): emails arrive as a `read_emails` tool result and
+        send_email is a real `toolConfig` tool. Mirrors GPTLLM.
+      - json (faithful Phi-3, for Bedrock *Marketplace* endpoints like Phi-3-mini): the tool format
+        lives in the prompt and we parse the JSON tool call from text -- no `toolConfig`. Marketplace
+        models frequently accept Converse text but reject toolConfig, and the challenge never ran Phi-3
+        with native tools anyway, so this is both faithful and robust. Single user turn (Phi-3 has no
+        system role), matching phi3_colab.ipynb exactly."""
+
+    def __init__(self, model_id: str, region: str, tool_prompt: str = "", tool_mode: str = "native",
+                 temperature: float = 0.0, top_p: float = 0.92, max_tokens: int = 500):
         import boto3
         self.client = boto3.client("bedrock-runtime", region_name=region)
         self.model_id = model_id
+        self.tool_prompt = tool_prompt          # carries the randomized send_email_<rand> name (json mode)
+        self.tool_mode = tool_mode
         self.inference = {"temperature": temperature, "topP": top_p, "maxTokens": max_tokens}
 
     def generate(self, system, query, emails, tool_spec):
+        if self.tool_mode == "json":            # faithful Phi-3: tool format in prompt, parse JSON from text
+            full = f"{system}\n\n{self.tool_prompt}\n{query}\n\n{emails}"
+            resp = self.client.converse(
+                modelId=self.model_id, messages=[{"role": "user", "content": [{"text": full}]}],
+                inferenceConfig=self.inference)
+            text = "".join(b["text"] for b in resp["output"]["message"]["content"] if "text" in b)
+            return {"response_text": text, "tool_calls": parse_json_tool_calls(text)}
+
         def spec(t):
             return {"toolSpec": {"name": t["name"], "description": t["description"],
                                  "inputSchema": {"json": t["parameters"]}}}
@@ -330,7 +349,8 @@ def make_model(args, tool_name, tool_prompt):
         return MockModel(tool_name), "mock"
     if args.model == "bedrock":
         mid = args.model_id or "us.amazon.nova-lite-v1:0"
-        return BedrockModel(mid, args.region, temperature=args.temperature), mid
+        return BedrockModel(mid, args.region, tool_prompt=tool_prompt, tool_mode=args.tool_mode,
+                            temperature=args.temperature), mid
     if args.model == "gemini":
         mid = args.model_id or "gemini-3.8-flash"
         return GeminiModel(mid, temperature=args.temperature), mid
@@ -416,7 +436,8 @@ def main():
     p.add_argument("--base-url", default="https://openrouter.ai/api/v1", help="OpenAI-compatible base URL (--model openai)")
     p.add_argument("--api-key-env", default="OPENROUTER_API_KEY", help="env var holding the API key (--model openai)")
     p.add_argument("--tool-mode", choices=["native", "json"], default="native",
-                   help="--model openai: 'native' tool-calling (Phi-4/Llama) or 'json' prompt format (faithful Phi-3)")
+                   help="openai/bedrock: 'native' tool-calling (Phi-4/Llama/Nova) or 'json' prompt format "
+                        "(faithful Phi-3; required for Bedrock Marketplace Phi-3-mini endpoints)")
     p.add_argument("--temperature", type=float, default=0.0)
     p.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     p.add_argument("--output", type=Path, default=None)
