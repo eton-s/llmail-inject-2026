@@ -5,6 +5,8 @@ tqdm
 tiktoken
 google-genai
 openai
+# RAG scenarios (S3/S4) context builder: build_contexts.py (pulls CPU torch)
+sentence-transformers
 # results notebook (replay_analysis.ipynb)
 pandas
 numpy
