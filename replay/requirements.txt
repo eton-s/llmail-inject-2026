@@ -1,0 +1,13 @@
+# harness
+boto3
+pyyaml
+tqdm
+tiktoken
+google-genai
+openai
+# results notebook (replay_analysis.ipynb)
+pandas
+numpy
+matplotlib
+jinja2
+ipykernel
