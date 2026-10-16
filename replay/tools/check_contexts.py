@@ -28,14 +28,20 @@ LLM_PY = WORKLOADS / "llm.py"
 PHASE1_ALL = ["task_tracker", "prompt_shield", "llm_judge", "spotlight"]   # scenarios.LLMRouter, phase 1
 
 
+def official_modules():
+    """The real prompt_utils and models modules, loaded under a stub package so the agent package's __init__
+    (torch/Azure) never runs; submodules still load from the real folder."""
+    if "llmail_workloads" not in sys.modules:
+        pkg = types.ModuleType("llmail_workloads")
+        pkg.__path__ = [str(WORKLOADS)]
+        sys.modules["llmail_workloads"] = pkg
+    return (importlib.import_module("llmail_workloads.prompt_utils"),
+            importlib.import_module("llmail_workloads.models"))
+
+
 def official_functions():
     """The two llm.py methods that assemble Phi-3's prompt, bound to the real prompt_utils/models modules."""
-    pkg = types.ModuleType("llmail_workloads")
-    pkg.__path__ = [str(WORKLOADS)]           # submodules load from the real folder; the package __init__ never runs
-    sys.modules["llmail_workloads"] = pkg
-    prompt_utils = importlib.import_module("llmail_workloads.prompt_utils")
-    models = importlib.import_module("llmail_workloads.models")
-
+    prompt_utils, models = official_modules()
     tree = ast.parse(LLM_PY.read_text(encoding="utf-8"))
 
     def method(cls: str, name: str) -> ast.FunctionDef:

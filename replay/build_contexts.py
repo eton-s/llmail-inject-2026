@@ -35,7 +35,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from replay import AGENT, DEFAULT_INPUT, REPO, format_email, format_emails, load_config, load_emails
+from replay import AGENT, DEFAULT_INPUT, REPO, format_email, format_emails, load_config, load_emails, phi3_prompt
 
 WORKLOADS = AGENT / "workloads"
 DATASET = Path(r"C:\Users\eton1\llmail-inject\llmail-inject-challenge\dataset\data")
@@ -110,12 +110,6 @@ def apply_spotlight(system_prompt: str, query: str, formatted_emails: str, sp: d
     formatted_emails = sp["SPOTLIGHT_DATA_MARK"].join(formatted_emails.split(" "))
     formatted_emails = sp["SPOTLIGHT_EMAILS_FORMAT"].format(formatted_emails)
     return system_prompt, query, formatted_emails
-
-
-def phi3_prompt(system_prompt: str, tool_prompt: str, query: str, formatted_emails: str) -> str:
-    """Mirror llm.Phi3LLM.call_model: Phi-3 has no system role, so everything is one user turn."""
-    system_prompt = f"{system_prompt}\n\n{tool_prompt}"
-    return system_prompt + "\n" + query + "\n\n" + formatted_emails
 
 
 def model_outcome(o: dict) -> str:
