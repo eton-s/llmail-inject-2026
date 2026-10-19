@@ -11,7 +11,7 @@ Two modes:
     used (see build_contexts.py).
 
 Thin, standalone reproduction of the challenge's *compliance* path. Reuses the official repo's
-config + data as source of truth and mirrors the relevant mechanics from `src/agent/workloads/`
+config + data as source of truth and mirrors the relevant mechanics from `challenge/agent/workloads/`
 (no torch/Azure import):
 
   - context assembly + input sanitization  -> `email_retriever.py` (BasicEmailRetriever / filter_emails)
@@ -61,7 +61,7 @@ except ImportError:
         return x
 
 REPO = Path(__file__).resolve().parents[1]
-AGENT = REPO / "src" / "agent"
+AGENT = REPO / "challenge" / "agent"       # the vendored subset of the original challenge code (see challenge/README.md)
 DATA = AGENT / "data"
 DEFAULT_INPUT = Path(r"C:\Users\eton1\llmail-inject\notebooks\attack_subsets\attack_subset_phase1.jsonl")
 

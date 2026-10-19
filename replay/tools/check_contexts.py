@@ -1,6 +1,6 @@
 """Independent byte-for-byte check of a contexts file against the challenge's own prompt-assembly code.
 
-Extracts `LLMWithDefenses.prompt` and `Phi3LLM.call_model` from `src/agent/workloads/llm.py` (via `ast`, so
+Extracts `LLMWithDefenses.prompt` and `Phi3LLM.call_model` from `challenge/agent/workloads/llm.py` (via `ast`, so
 llm.py's torch/Azure imports never run), executes them unmodified with stub clients, captures the payload Phi-3
 would have received for every record, and compares it with the record's `full_prompt`. The real `prompt_utils`
 module supplies the Spotlight constants and `format_emails` (loaded under a stub package, so its relative import

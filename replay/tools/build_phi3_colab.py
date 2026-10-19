@@ -4,8 +4,9 @@ import json, uuid
 from pathlib import Path
 import yaml
 
-FORK = Path(r"C:\Users\eton1\llmail-inject\llmail-inject-2026\src\agent")
-OUT = Path(r"C:\Users\eton1\llmail-inject\llmail-inject-2026\replay\phi3_colab.ipynb")
+REPO = Path(__file__).resolve().parents[2]
+FORK = REPO / "challenge" / "agent"          # vendored subset of the original challenge code
+OUT = REPO / "replay" / "phi3_colab.ipynb"
 
 cfg = yaml.safe_load(open(FORK / "config.yaml", encoding="utf-8"))
 sc1 = cfg["scenario_templates"]["scenario1"]

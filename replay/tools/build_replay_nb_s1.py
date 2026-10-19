@@ -2,7 +2,7 @@
 import json, uuid, sys
 from pathlib import Path
 
-NB_PATH = Path(r"C:\Users\eton1\llmail-inject\llmail-inject-2026\replay\replay_analysis.ipynb")
+NB_PATH = Path(__file__).resolve().parents[1] / "replay_analysis.ipynb"
 
 CELLS = [
     ("markdown", r'''# Replay results — attack transferability & defense decomposition
