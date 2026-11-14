@@ -1,6 +1,6 @@
 # LLMail-Inject 2026: do year-old prompt injections still work?
 
-A defensive-security research project (Humber College, CCGC5003 Project 1) that replays attacks from Microsoft's
+A defensive-security research project (Humber Polytechnic, CCGC5003 Project 1) that replays attacks from Microsoft's
 [LLMail-Inject](https://github.com/microsoft/llmail-inject-challenge) prompt-injection challenge (Dec 2024 – Feb 2025)
 against newer language models. The question: **of the attacks that fully succeeded against the 2024 challenge
 models, how many still work on 2026 models, and how should that be measured fairly?**
@@ -56,9 +56,11 @@ email and send it to the attacker.
 5. **Results must be read against the original model, not 100%.** The 2024 successes were mostly rare wins: in
    the raw data, identical resubmissions of a successful attack re-succeeded only 3–10% of the time. The replay
    still preserves attack strength: on the same Phi-3, 2024 successes replay far above 2024 failures (strict 7%
-   vs 1%, p = 0.005; relaxed 34% vs 11%, p = 2e-6). An earlier Scenario 1 figure of 60% turned out to be a
-   greedy-decoding artifact; sampled faithfully, it is 8%.
-6. **Spotlight (datamarking) still blocks every model**: zero leaks on the Spotlight levels.
+   vs 1%, p = 0.005; relaxed 34% vs 11%, p = 2e-6). An earlier Scenario 1 figure of 60% didn't hold up: in the
+   faithful setup it is 8%. The pilot used greedy decoding, a 4k checkpoint and 4-bit weights; greedy decoding is
+   the likely cause, but that isn't isolated yet.
+6. **Spotlight (datamarking), a 2024 defense, still works.** It cuts leaks by 77–100% for every model that can be
+   tested, and to zero for Gemma 4.
 
 ![Reproducibility of leaks](replay/figures/fig4_consistency.png)
 

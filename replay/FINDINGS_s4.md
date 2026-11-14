@@ -48,14 +48,17 @@ stochastic events, so even a faithful Phi-3 reproduces only a fraction (validate
    relaxed) but rarely in the required one-line JSON format; even when asked directly it produces that format only
    ~40% of the time. Judge Phi-4 on the relaxed metric.
 
-5. **The faithful baseline is modest, and that is the point.** An earlier pilot put Phi-3 at 60% on Scenario 1 —
-   but that used greedy decoding, which deterministically reproduces a working attack. Sampled at the challenge's
-   actual temperature, the same 50 S1 attacks drop to 8% strict. **Decoding temperature, not the model, drove the
-   old headline.** The replay is still valid: 2024 successes beat 2024 failures on the same Phi-3 (strict
-   p = 0.005, relaxed p = 2e-6), and graded attack strength is preserved.
+5. **The faithful baseline is modest, and that is the point.** An earlier pilot put Phi-3 at 60% on Scenario 1,
+   but in the faithful setup the same 50 attacks give 8% strict. The pilot differed in three ways: greedy
+   decoding, the 4k checkpoint (a separately trained sibling of the 128k model) and 4-bit quantization. Greedy
+   decoding is the most likely driver, since it deterministically reproduces a working attack, but isolating it
+   needs one more run: the faithful setup at temperature 0. The replay is still valid: 2024 successes beat 2024
+   failures on the same Phi-3 (strict p = 0.005, relaxed p = 2e-6), and graded attack strength is preserved.
 
-6. **Spotlight (datamarking) holds across every model** — zero leaks on the datamarked levels throughout. A 2024
-   defense still neutralizes these attacks on 2026 models.
+6. **Spotlight (datamarking), a 2024 defense, still works on newer models.** It cuts relaxed leaks by 77–100% for
+   every model that can be tested (Phi-3 28.9% → 2.8%, Phi-4 21.5% → 5.0%) and to **zero for Gemma 4** (0/144).
+   Gemma-2 can't be judged here: datamarking roughly doubles prompt length, so most Spotlight prompts overflow its
+   8k window (6 evaluable attempts). Haiku leaks on neither side.
 
 ## Figures
 `figures/fig1_headline.png` · `fig2_gemma_pair.png` · `fig3_fidelity.png` · `fig4_consistency.png`

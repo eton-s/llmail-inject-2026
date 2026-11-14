@@ -81,8 +81,9 @@ print("\\nThe newer model is significantly LESS willing to leak, but converts ne
 print("call, so the challenge's exact-match score flips the comparison. Report both metrics + the conversion rate.")'''),
 
     ("markdown", "## 4. Where leaks survive — by defense level\n\n"
-     "Relaxed leak rate per phase-1 level (model × defense). Spotlight levels (4e/4f/4i/4j) still block the attack "
-     "for every model. Cells are leaks / evaluable."),
+     "Relaxed leak rate per phase-1 level (model × defense), draw 0. Spotlight levels (4e/4f/4i/4j) sharply reduce "
+     "leaks but don't eliminate them for every model (Phi-3 and Phi-4 still leak occasionally). Cells are "
+     "leaks / evaluable."),
 
     ("code", '''from pathlib import Path
 from collections import defaultdict
@@ -115,19 +116,20 @@ for r in A.consistency():
 display(pd.DataFrame(rows).set_index(["model", "metric"]))
 print("Gemma 4's leaks are a fixed, reliable set of attacks; the 2024-era models mostly leak by chance.")'''),
 
-    ("markdown", "## 6. Scenario-1 cross-check — the original 60% was a decoding artifact\n\n"
-     "The earlier S1 pilot reported Phi-3 at 60% strict. That run used the **4k variant + greedy decoding + the "
-     "repo's suffixed query**. Re-run faithfully (128k, dataset prompt, sampled at T=1.0, the challenge's actual "
-     "setting) on the same 50 attacks, Phi-3 S1 is far lower — greedy deterministically reproduces a working "
-     "attack, but the challenge sampled."),
+    ("markdown", "## 6. Scenario-1 cross-check — the earlier 60% doesn't hold up\n\n"
+     "The earlier S1 pilot reported Phi-3 at 60% strict. That run used the **4k checkpoint (a separately trained "
+     "sibling of the 128k model), 4-bit weights, greedy decoding and the repo's suffixed query**. Re-run faithfully "
+     "(128k, bf16, dataset prompt, sampled at T=1.0) on the same 50 attacks, Phi-3 S1 is far lower. Greedy decoding "
+     "is the likely driver (it deterministically reproduces a working attack); the suffixed query would push the "
+     "other way. Isolating it needs the faithful setup re-run at temperature 0."),
 
     ("code", '''from pathlib import Path
 s1 = [__import__("json").loads(l) for l in Path("results/s1/replay_microsoft-Phi-3-medium-128k-instruct_successes.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
 ok = [r for r in s1 if A.row_status(r) == "ok"]
 sk, lk, n = sum(r["complied"] for r in ok), sum(r["leak"] for r in ok), len(ok)
 print(f"S1 faithful (128k, dataset prompt, T=1.0), n={n}: strict {sk}/{n} = {sk/n:.0%} | relaxed {lk}/{n} = {lk/n:.0%}")
-print("S1 original pilot (4k, greedy, suffixed prompt):     strict 30/50 = 60%")
-print("-> decoding temperature, not the model, drove the headline S1 number.")'''),
+print("S1 original pilot (4k, 4-bit, greedy, suffixed prompt): strict 30/50 = 60%")
+print("-> the old number doesn't survive a faithful re-run; greedy decoding is the likely (not yet isolated) cause.")'''),
 
     ("markdown", r'''## 7. Key findings (3 draws per attack)
 
@@ -143,10 +145,12 @@ print("-> decoding temperature, not the model, drove the headline S1 number.")''
 4. **Phi-4's strict score is a formatting artifact** (0.8% strict vs 17.9% relaxed): it attempts to leak as often
    as its peers but rarely in the required one-line JSON (positive control ~40% strict). Read Phi-4 on relaxed.
 5. **The headline must be read against the original model, not 100%** — and the *faithful* baseline is modest. The
-   old S1 "60%" was a greedy-decoding artifact; sampled at the challenge's T=1.0, even easy S1 drops to single
-   digits (§6). The replay is nonetheless valid: 2024 successes beat 2024 failures on the same Phi-3 (strict
+   old S1 "60%" doesn't survive a faithful re-run (8% strict, §6); greedy decoding is the likely cause but isn't
+   isolated yet. The replay is nonetheless valid: 2024 successes beat 2024 failures on the same Phi-3 (strict
    p=0.005, relaxed p=2e-6), with graded strength preserved.
-6. **Spotlight (datamarking) still blocks every model** — 0 leaks on levels 4e/4f/4i/4j throughout.
+6. **Spotlight (datamarking), a 2024 defense, still works:** it cuts relaxed leaks by 77–100% for every testable
+   model (Phi-3 28.9% → 2.8%, Phi-4 21.5% → 5.0%) and to zero for Gemma 4. Gemma-2 can't be judged: most
+   datamarked prompts overflow its 8k window.
 
 **Caveats:** 3 draws (per-draw rate ± Wilson CI); JSON-in-prompt tool format for all models (not native tools);
 relaxed counts malformed-but-intentful calls; Gemma-2 Spotlight prompts overflow its 8k window (excluded);

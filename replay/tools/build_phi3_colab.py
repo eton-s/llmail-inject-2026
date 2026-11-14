@@ -26,7 +26,7 @@ CELLS = [
 
 Runs the original challenge model's weights — **`microsoft/Phi-3-medium-4k-instruct`** (4-bit) — over the scenario-1 attacks and scores compliance, mirroring `replay.py`'s json tool-mode. Directional baseline check: *does the 2024 model comply on attacks that Phi-4/Gemini resist?*
 
-> **Why the 4k variant?** The challenge shipped `Phi-3-medium-128k-instruct`. That checkpoint uses *longrope* scaling, whose remote code no longer loads on current `transformers` (the `rope_parameters`/`DynamicCache` errors). The **4k-instruct checkpoint is the same base weights** with standard rope, so it loads natively with no remote code and no version pinning. Our scenario-1 inputs are well under 4k tokens, so behavior is identical for this test. The proper 1:1 `128k` + bf16 run comes later via Option A (Modal/RunPod + vLLM).
+> **Why the 4k variant?** The challenge shipped `Phi-3-medium-128k-instruct`. That checkpoint uses *longrope* scaling, whose remote code no longer loads on current `transformers` (the `rope_parameters`/`DynamicCache` errors). The **4k-instruct checkpoint is a sibling of the same model** (same architecture and size, separately trained for a 4k context) with standard rope, so it loads natively with no remote code and no version pinning. Our scenario-1 inputs are well under 4k tokens, so the shorter context is not a problem, but it is a different checkpoint, so treat results as an approximation. The proper 1:1 `128k` + bf16 run comes later via Option A (Modal/RunPod + vLLM).
 
 **Before running:** Runtime → Change runtime type → **T4 GPU**. In the upload cell, upload your **`attack_subset_phase1.jsonl`** (from `notebooks/attack_subsets/`). The results file it produces matches the harness schema, so drop it into `replay/results/` and your `replay_analysis.ipynb` picks it up.'''),
 
@@ -96,8 +96,8 @@ print("tool name:", TOOL_NAME, "| benign emails:", len(BENIGN), "| groundtruth:"
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-# 4k variant: SAME weights as the 128k model, but standard rope (no longrope) -> loads cleanly on the
-# current transformers with no remote code. Identical behavior for our short scenario-1 inputs (<4k tokens).
+# 4k variant: a sibling checkpoint of the 128k model (same size; standard rope, no longrope) -> loads cleanly on the
+# current transformers with no remote code. A different checkpoint, so results only approximate the 128k model.
 MODEL = "microsoft/Phi-3-medium-4k-instruct"
 bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.bfloat16)
 tok = AutoTokenizer.from_pretrained(MODEL)
