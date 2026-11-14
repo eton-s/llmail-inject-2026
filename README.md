@@ -1,71 +1,105 @@
-# LLMail-Inject 2026: do year-old prompt injections still work?
+# CCGC5003 Project 1
 
-A defensive-security research project (Humber Polytechnic, CCGC5003 Project 1) that replays attacks from Microsoft's
-[LLMail-Inject](https://github.com/microsoft/llmail-inject-challenge) prompt-injection challenge (Dec 2024 – Feb 2025)
-against newer language models. The question: **of the attacks that fully succeeded against the 2024 challenge
-models, how many still work on 2026 models, and how should that be measured fairly?**
+| Topic:    | llmail-inject-2026: Do year-old prompt injections still work on 2026 models?|
+| -------- | ------------ |
+
+
+## Introduction
+In this project for my Cybersecurity & AI postgrad certificate at Humber Polytechnic, I replayed attacks from Microsoft's [LLMail-Inject](https://github.com/microsoft/llmail-inject-challenge) challenge (Dec 2024 - Feb 2025) against newer language models. **Of the attacks that fully succeeded against the 2024 challenge models, how many still work on 2026 models?**
 
 ## Background
+- A **prompt injection** works by giving content (like an email or pdf) to an AI that manipulates it into behaving a certain way.
+- LLMail-Inject was a competition hosted by Microsoft in 2024 where attackers attempted to manipulate an LLM email agent into sending them sensitive information by including malicious instructions within a single email in the inbox.
+- Microsoft's Phi-3-medium-128k and OpenAI's GPT-4o-mini were the target agents. This project focuses on Phi-3.
+- There were multiple different levels that adjusted objective, difficulty, etc. In this project, I focused on the successful attacks for the most difficult scenario (Scenario 4) where the attacker's email must:
+    1. Be retrieved by RAG (i.e. be relevant to user's query)
+    2. Bypass one or more defense systems (Prompt Shield, TaskTracker, LLM judge, Spotlight)
+    3. Get the model to pull a specific figure from another email in the inbox, then send it to the attacker's email
 
-In LLMail-Inject, an LLM email assistant answers a user's question about their inbox, and an attacker plants one
-email that tries to make the assistant call its `send_email` tool. This project focuses on **Scenario 4**, the
-hardest phase-1 setting. The attacker's email must be retrieved by RAG, slip past a defense (Prompt Shield,
-TaskTracker, LLM judge or Spotlight), and get the model to pull a secret figure (`$9.378 million`) from *another*
-email and send it to the attacker.
+![LLMail-Inject Overview](challenge/overview.png)
 
-## Approach
+## Method
 
-- **Faithful prompts.** Every per-attack prompt is rebuilt with the challenge's own code (its retriever runs
-  unmodified) and verified **byte-identical** to the original prompt assembly for all 2,538 Scenario 1 and 4
-  prompts. Phase 1 actually deployed the prompt strings published with the dataset, not the repo's `config.yaml`.
-  The dataset's version reproduces the 2024 retrieval labels for 1,003 of 1,008 attacks; the repo's, for 945.
-- **The original model as baseline.** Phi-3-medium-128k-instruct, bf16, pinned to the revision live during the
-  challenge, served with vLLM on Modal. It runs one request at a time with chunked prefill and prefix caching off,
-  because vLLM selects Phi-3's long-context RoPE scaling per *batch*.
-- **A model ladder.** Gemma-2-27B (2024), Phi-4 (Dec 2024), Gemma 4 31B (2026) and Claude Haiku 5.5 (2026) via
-  OpenRouter. Every model gets the identical JSON-in-prompt tool format and the original sampling settings
-  (`top_p` 0.92, temperature 1.0), with 3 draws per attack.
-- **Two scores.** *Strict* is the challenge's exact-match rule, using its own parser. *Relaxed* asks whether the
-  secret reached the attacker's address in any wording or format. Relaxed is the intent signal.
+### 1. Selected successful attacks from the [original dataset](https://huggingface.co/datasets/microsoft/llmail-inject-challenge)
+![Attack Selection](replay/figures/fig0_selection_funnel.png)
 
-## Results so far: Scenario 4
+### 2. Chose a suite of models to replay the successful attacks with
+| Model             | Released | Role                                                                                             |
+| ----------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| Phi-3-medium-128k | May 2024 | the original challenge model: the baseline                                                       |
+| Gemma-2-27B       | Jun 2024 | 2024-era control, paired with Gemma 4                                                            |
+| Phi-4             | Dec 2024 | Phi-3’s direct successor (released during the challenge)                                         |
+| Gemma 4 31B       | Apr 2026 | the 2026 equivalent of Phi-3’s niche: a mid-size open model from a big lab, about six months old |
+| Claude Haiku 5.5  | Oct 2026 | closed model in GPT-4o-mini’s price tier                |              
 
-212 attacks that fully exfiltrated the secret in 2024, 3 draws each (per-draw rate pooled over draws, 95% CI):
+### 3. Found hosting solutions to run each model with
+- I couldn't find any cloud providers that host Phi-3-medium-128k directly. Instead, I hosted it myself with vLLM on a GPU rented through Modal (ended up spending ~$11 out of $30 free monthly credits)
+- The other 4 models ran through the OpenRouter API (less than $2)
 
-| Model | Released | Strict | Relaxed |
-|---|---|---|---|
-| Phi-3-medium (the original model) | 2024-05 | 6.8% [5–9] | 23.0% [20–26] |
-| Gemma-2-27B | 2024-06 | 5.8% [4–8] | 19.3% [16–23] |
-| Phi-4 | 2024-12 | 0.8% [0–2] | 17.9% [15–21] |
-| Gemma 4 31B | 2026-04 | 9.4% [7–12] | 9.9% [8–12] |
-| Claude Haiku 5.5 | 2026-10 | 0.0% [0–1] | 0.0% [0–1] |
+### 4. Built replay client using the [source code](https://github.com/microsoft/llmail-inject-challenge)
+- https://github.com/eton-s/llmail-inject-2026
+- Some limitations (unknown model temperature, library drift, difference in LLM hosting service), but exact match is not strictly necessary since replaying with the original model establishes a baseline
 
-![Headline results](replay/figures/fig1_headline.png)
+### 5. Replay
 
-**Key findings**
+#### 3.3. Ran sanity checks
 
-1. **S4 attacks transfer to a current model, but not to all of them.** Gemma 4 leaks the secret at or above the
-   original Phi-3's own replay rate under strict scoring; Claude Haiku 5.5 resisted all 577 attempts.
-2. **Gemma 4's leaks are reproducible.** Of attacks that leak on at least one draw, 83% leak on *every* draw,
-   versus 20–31% for the 2024-era models. A stable set of about 20 attacks reliably defeats it.
-3. **The metric decides whether the newer Gemma looks safer.** Compared with Gemma-2, Gemma 4 attempts to leak
-   significantly less often (21% → 13%, p = 0.02). But it executes almost every attempt perfectly (21/22 vs 11/35),
-   so its exact-match score is higher (7% → 13%, not significant).
-4. **Phi-4's near-zero strict score is a formatting artifact.** It tries to leak about as often as its peers but
-   rarely produces the required one-line JSON.
-5. **Results must be read against the original model, not 100%.** The 2024 successes were mostly rare wins: in
-   the raw data, identical resubmissions of a successful attack re-succeeded only 3–10% of the time. The replay
-   still preserves attack strength: on the same Phi-3, 2024 successes replay far above 2024 failures (strict 7%
-   vs 1%, p = 0.005; relaxed 34% vs 11%, p = 2e-6). An earlier Scenario 1 figure of 60% didn't hold up: in the
-   faithful setup it is 8%. The pilot used greedy decoding, a 4k checkpoint and 4-bit weights; greedy decoding is
-   the likely cause, but that isn't isolated yet.
-6. **Spotlight (datamarking), a 2024 defense, still works.** It cuts leaks by 77–100% for every model that can be
-   tested, and to zero for Gemma 4.
+- Sent 10 direct requests per model to check how often it calls the tool when the user explicitly asks
+- Models with strong instruction-following and ability to use the tool will score 100% on this. Lower scores indicate the model has trouble using the tool when it's supposed to
+- Sets a baseline maximum success rate for attacks against each model
 
-![Reproducibility of leaks](replay/figures/fig4_consistency.png)
+#### 3.4. Ran Phi-3 controls
 
-The full write-up with caveats is in [`replay/FINDINGS_s4.md`](replay/FINDINGS_s4.md); the analysis notebook is
-[`replay/s4_analysis.ipynb`](replay/s4_analysis.ipynb).
+- Validate the transferability of results from the original challenge to this project
+- Ran 268 attacks that failed on Phi-3 in 2024's original challenge
+- If the replay client behaves similarly to the original, then these attacks should fail much more frequently than the successful attacks
+
+#### 3.5. Ran main runs
+- Ran 3 independent runs for each of the 212 successful attacks $\to$ 636 runs per model
+    - multiple runs to account for inherent randomness with LLMs
+- Recorded the result for each run, measured in both *strict successes* (passes same success criteria as original challenge) and *relaxed successes* (captures intent: model extracts the correct figure and attempts to call the tool, but runs into a technical failure)
+    - Examples of a relaxed success: 
+        - tool JSON is formatted incorrectly (like missing spaces or brackets) so the email does not send
+        - email is sent, but the body is formatted incorrectly (in a sentence rather than raw figure, or missing '$')
+
+## Results
+
+![Ceiling](replay/figures/fig5_ceilings.png)
+- Gemma 2, Gemma 4, and Haiku 5.5 called & correctly formatted the email tool 10/10 when asked by the actual user $\to$ no visible tool use issues.
+- Phi-3 and Phi-4 only successfully format the email tool call around half the time $\to$ family is inconsistent with tool usage.
+
+![Fidelity](replay/figures/fig3_fidelity.png)
+- 2024 successes perform significantly better than 2024 failures on the Phi-3 replay.
+- Relatively low success rate is expected — in the original dataset, of the 63 Phi-3 attacks that succeeded once and were resubmitted unchanged, the repeats only succeed ~5% of the time on average. 
+
+![Consistency](replay/figures/fig4_consistency.png)
+- For most models, attacks reliably succeeded over all 3 draws less than a third of the time.
+- For Gemma 4, 19/23 (83%) of the attacks that leaked did so consistently over all 3 draws. 
+
+![Headline](replay/figures/fig1_headline.png)
+- 2026's Gemma 4 exfiltrates about as often as the original 2024 models under the challenge’s own scoring
+- Haiku 5.5 didn't allow a single attack to succeed.
+
+## Discussion
+
+- **The low Phi-4 strict success rate is a formatting artifact, not an improved defense.** It attempts to exfiltrate at a similar rate to the other 2024 models, but it consistently fails to format the tool call correctly.
+    - Also, head-to-head comparison against Phi-3 isn't fair due to the selection bias — many of the chosen attacks have already succeeded at least once on Phi-3, but not Phi-4.
+- **The attacks from the original dataset translate to (some) 2026 models.**
+    - Gemma 4 is one of Google's most popular open-weight models, and attacks against it succeed at least as often as the original Phi-3. It attempts to exfiltrate less often, but when it does, it is significantly more likely to succeed.
+    - Haiku 5.5 is Claude's newest small model as of October 2026 (closed-weight). No attacks attempted were successful against Haiku. Unlike Gemma 4, which was run without any additional defenses, Haiku 5.5 has built-in safeguards to protect aginst prompt injection.
+    - **So while a typical unprotected open-weight model in 2026 may still be vulnerable to old prompt injection techniques, a small state-of-the-art closed model with competent defense mechanisms trivializes this kind of attack.**
+
+## Implications
+**What does this mean for you?**
+- If you're using Claude models, you are more likely to be safe against this type of simple prompt injection attack. However, more complex attack patterns may still be a threat.
+- If you're using small open models like Gemma 4, you have an agent with access to sensitive data exposed to the internet, and you don't have any secondary layers of defense, **then your system has a potential vulnerability**. This doesn't just concern email assistent agents — any agent that reads arbitrary content from the internet could fall victim to this attack pattern.
+
+## Next Steps
+
+With what I've learned in this stage of the project, I have a few directions I can explore:
+- **Add Defenses:** The experiment I ran tested each model without any runtime defenses like LLM-as-a-judge, activation probes, or behavioural gating. I could replay the experiment again, this time with modern open-source defenses implemented, and see how this affects performance.
+- **Increase Coverage:** So far I've found a 2026 open model that is vulnerable to attacks, and a 2026 closed model that is fully resistant. Replaying against a wider array of models could help to get a better picture of the current landscape.
+- **New Attacks:** The performance against Haiku demonstrates that this kind of prompt injection attack is ineffective at the upper end of the spectrum, so it could be worth looking into different types of attacks that are more effective against today's models.
 
 ## Repository layout
 
@@ -96,16 +130,6 @@ Two inputs live outside this repository, and their paths are currently hardcoded
 - the attack subset produced by a separate exploratory notebook (`DEFAULT_INPUT` in `replay.py`).
 
 The attack texts themselves are not redistributed here.
-
-## Next steps
-
-- **Stage 2, "smarter = riskier?":** replay the 457 attacks that reached the 2024 model but didn't exfiltrate,
-  separating willingness to leak from execution, plus a reasoning-on ablation.
-- **Stage 3, "behind the old defenses?":** combine the 2024 detector verdicts with new-model compliance.
-- **Stage 4, modern detectors:** score the same attacks with current guard models and compare with the 2024 detectors.
-- **Robustness:** more models (Qwen3.6-27B, Ministral 3 14B), native tool-calling, temperature sensitivity (the
-  2024 server's default is unknown), and a Scenario 1 re-run of the modern models on the corrected prompts.
-- **Portability:** replace the hardcoded input paths with configuration.
 
 ## Attribution
 
